@@ -27,7 +27,7 @@ def main():
 
     if st.checkbox("Show raw data"):
         st.subheader("Raw data")
-        st.write(data)
+        st.dataframe(data)
 
     data["date"] = pd.to_datetime(data[["YEAR", "MONTH", "DAY", "HOUR", "MINUTE"]])
 
