@@ -7,8 +7,6 @@ import streamlit as st
 from colorhash import ColorHash
 from pyproj import Proj
 
-st.title("Vancouver Crime Data")
-
 
 @st.cache_data
 def load_data():
@@ -22,52 +20,61 @@ def load_data():
         return pd.read_csv(f)
 
 
-data = load_data()
+def main():
+    st.title("Vancouver Crime Data")
 
-if st.checkbox("Show raw data"):
-    st.subheader("Raw data")
-    st.write(data)
+    data = load_data()
 
-data["date"] = pd.to_datetime(data[["YEAR", "MONTH", "DAY", "HOUR", "MINUTE"]])
+    if st.checkbox("Show raw data"):
+        st.subheader("Raw data")
+        st.write(data)
 
-# Map X and Y to lon and lat
-p = Proj("+proj=utm +zone=10 +datum=WGS84 +units=m +no_defs +type=crs")
-data.X = data.X.replace(0, None)
-data.Y = data.Y.replace(0, None)
-data["lon"], data["lat"] = p(data.X, data.Y, inverse=True, errcheck=True)
+    data["date"] = pd.to_datetime(data[["YEAR", "MONTH", "DAY", "HOUR", "MINUTE"]])
 
-year_range = st.slider(
-    "Year range", data.YEAR.min(), data.YEAR.max(), (data.YEAR.min(), data.YEAR.max())
-)
+    # Map X and Y to lon and lat
+    p = Proj("+proj=utm +zone=10 +datum=WGS84 +units=m +no_defs +type=crs")
+    data.X = data.X.replace(0, None)
+    data.Y = data.Y.replace(0, None)
+    data["lon"], data["lat"] = p(data.X, data.Y, inverse=True, errcheck=True)
 
-crime_types = st.multiselect("Types of crimes", data.TYPE.unique())
+    year_range = st.slider(
+        "Year range",
+        data.YEAR.min(),
+        data.YEAR.max(),
+        (data.YEAR.min(), data.YEAR.max()),
+    )
 
-data = data[
-    data.YEAR.between(*year_range) & ((not crime_types) | (data.TYPE.isin(crime_types)))
-]
+    crime_types = st.multiselect("Types of crimes", data.TYPE.unique())
 
-st.subheader("Crimes by hour")
-st.bar_chart(data.HOUR.value_counts())
+    data = data[
+        data.YEAR.between(*year_range)
+        & ((not crime_types) | (data.TYPE.isin(crime_types)))
+    ]
 
-st.subheader("Crimes by year")
-st.bar_chart(data.YEAR.value_counts())
+    st.subheader("Crimes by hour")
+    st.bar_chart(data.HOUR.value_counts())
+
+    st.subheader("Crimes by year")
+    st.bar_chart(data.YEAR.value_counts())
+
+    COLOR_COLUMN = "TYPE"
+    COLOR_MAP = {k: ColorHash(k).hex for k in data[COLOR_COLUMN].unique()}
+
+    st.subheader("Crimes by type")
+    type_data = data.TYPE.value_counts().to_frame()
+    type_data["color"] = type_data.index.map(COLOR_MAP)
+    st.bar_chart(type_data, y="count", color="color")
+
+    map_data = data[data["lat"].notna() & data["lon"].notna()]
+    map_data["color"] = map_data[COLOR_COLUMN].map(COLOR_MAP)
+
+    st.subheader("Map of crimes")
+    st.map(
+        map_data.value_counts(["lat", "lon", "color"]).to_frame().reset_index(),
+        size="count",
+        color="color",
+    )
 
 
-COLOR_COLUMN = "TYPE"
-COLOR_MAP = {k: ColorHash(k).hex for k in data[COLOR_COLUMN].unique()}
-
-st.subheader("Crimes by type")
-type_data = data.TYPE.value_counts().to_frame()
-type_data["color"] = type_data.index.map(COLOR_MAP)
-st.bar_chart(type_data, y="count", color="color")
-
-
-map_data = data[data["lat"].notna() & data["lon"].notna()]
-map_data["color"] = map_data[COLOR_COLUMN].map(COLOR_MAP)
-
-st.subheader("Map of crimes")
-st.map(
-    map_data.value_counts(["lat", "lon", "color"]).to_frame().reset_index(),
-    size="count",
-    color="color",
-)
+if __name__ == "__main__":
+    main()
