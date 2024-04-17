@@ -2,6 +2,7 @@ from io import BytesIO
 from zipfile import ZipFile
 
 import pandas as pd
+import plotly.express as px
 import requests
 import streamlit as st
 from colorhash import ColorHash
@@ -54,8 +55,15 @@ def main():
     st.subheader("Crimes by hour")
     st.bar_chart(data.HOUR.value_counts())
 
-    st.subheader("Crimes by year")
-    st.bar_chart(data.YEAR.value_counts())
+    st.subheader("Crimes by year and type")
+    st.plotly_chart(
+        px.line(
+            data[["YEAR", "TYPE"]].value_counts().reset_index().sort_values("YEAR"),
+            x="YEAR",
+            y="count",
+            color="TYPE",
+        )
+    )
 
     COLOR_COLUMN = "TYPE"
     COLOR_MAP = {k: ColorHash(k).hex for k in data[COLOR_COLUMN].unique()}
