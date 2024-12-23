@@ -1,8 +1,10 @@
+import textwrap
 from io import BytesIO
 from zipfile import ZipFile
 
 import pandas as pd
 import plotly.express as px
+import pydeck as pdk
 import requests
 import streamlit as st
 from colorhash import ColorHash
@@ -95,7 +97,7 @@ def main():
     )
 
     COLOR_COLUMN = "TYPE"
-    COLOR_MAP = {k: ColorHash(k).hex for k in data[COLOR_COLUMN].unique()}
+    COLOR_MAP = {k: ColorHash(k).rgb for k in data[COLOR_COLUMN].unique()}
 
     st.subheader("Crimes by type")
     type_data = data.TYPE.value_counts().to_frame()
@@ -103,13 +105,41 @@ def main():
     st.bar_chart(type_data, horizontal=True, y="count", color="color")
 
     map_data = data[data["lat"].notna() & data["lon"].notna()]
-    map_data["color"] = map_data[COLOR_COLUMN].map(COLOR_MAP)
+    map_data = map_data.value_counts(
+        ["lon", "lat", "TYPE", "NEIGHBOURHOOD", "HUNDRED_BLOCK"]
+    ).reset_index()
+    map_data["color"] = (
+        map_data[COLOR_COLUMN].map(COLOR_MAP).apply(lambda v: v + (128,))
+    )
+    map_data["rank"] = map_data["count"].rank(method="dense")
 
-    st.subheader("Map of crimes")
-    st.map(
-        map_data.value_counts(["lat", "lon", "color"]).to_frame().reset_index(),
-        size="count",
-        color="color",
+    st.subheader("Map")
+
+    st.pydeck_chart(
+        pdk.Deck(
+            pdk.Layer(
+                "ScatterplotLayer",
+                data=map_data,
+                get_position=["lon", "lat"],
+                get_radius="rank / 3",
+                get_fill_color="color",
+                pickable=True,
+            ),
+            initial_view_state=pdk.data_utils.compute_view(map_data[["lon", "lat"]]),
+            map_style=None,
+            tooltip={
+                "html": textwrap.dedent(
+                    """
+                    <b>Type:</b> {TYPE}
+                    <b>Count:</b> {count}
+                    <b>Location:</b> {HUNDRED_BLOCK}, {NEIGHBOURHOOD}
+                    """
+                )
+                .strip()
+                .replace("\n", "<br/>"),
+                "style": {"color": "white"},
+            },
+        ),
         height=800,
     )
 
