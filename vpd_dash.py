@@ -37,7 +37,7 @@ def main():
     data.Y = data.Y.replace(0, None)
     data["lon"], data["lat"] = p(data.X, data.Y, inverse=True, errcheck=True)
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns([3, 3, 3, 1])
 
     neighbourhoods = col1.multiselect(
         "Neighbourhoods", options=sorted(data.NEIGHBOURHOOD.dropna().unique())
@@ -52,6 +52,12 @@ def main():
         (data.YEAR.min(), data.YEAR.max()),
     )
 
+    frequency = col4.selectbox(
+        "Frequency",
+        ["YE", "QE", "ME"],
+        format_func={"YE": "Yearly", "QE": "Quarterly", "ME": "Monthly"}.get,
+    )
+
     data = data[
         data.YEAR.between(*year_range)
         & ((not neighbourhoods) | (data.NEIGHBOURHOOD.isin(neighbourhoods)))
@@ -60,20 +66,17 @@ def main():
 
     st.subheader("Crimes by year")
     st.plotly_chart(
-        px.line(
-            data.YEAR.value_counts().reset_index().sort_values("YEAR"),
-            x="YEAR",
-            y="count",
-        )
+        px.line(data["date"].value_counts().resample(frequency).sum(min_count=1))
     )
 
     st.subheader("Crimes by type")
     st.plotly_chart(
         px.line(
-            data[["YEAR", "TYPE"]].value_counts().reset_index().sort_values("YEAR"),
-            x="YEAR",
-            y="count",
-            color="TYPE",
+            data[["date", "TYPE"]]
+            .value_counts()
+            .unstack()
+            .resample(frequency)
+            .sum(min_count=1),
             category_orders={"TYPE": sorted(data.TYPE.dropna().unique())},
             height=800,
         )
@@ -82,13 +85,11 @@ def main():
     st.subheader("Crimes by neighbourhood")
     st.plotly_chart(
         px.line(
-            data[["YEAR", "NEIGHBOURHOOD"]]
+            data[["date", "NEIGHBOURHOOD"]]
             .value_counts()
-            .reset_index()
-            .sort_values("YEAR"),
-            x="YEAR",
-            y="count",
-            color="NEIGHBOURHOOD",
+            .unstack()
+            .resample(frequency)
+            .sum(min_count=1),
             category_orders={
                 "NEIGHBOURHOOD": sorted(data.NEIGHBOURHOOD.dropna().unique())
             },
